@@ -1,0 +1,19 @@
+# Generado por publicar_github.py
+*.pbf
+*.crdownload
+*.part
+*.zip
+*.7z
+*.rar
+__pycache__/
+*.pyc
+.venv/
+venv/
+node_modules/
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+desktop.ini
+.github_token
+publicar_github.log
