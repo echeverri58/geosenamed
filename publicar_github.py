@@ -450,6 +450,66 @@ def pedir_nombre_repositorio(propuesta="geosenamed"):
         log("  Nombre no válido: usa letras, números, guiones o puntos (máx. 100).")
 
 
+def empujar_con_credenciales(rama, forzar=False):
+    """Sube usando las credenciales de Git guardadas en Windows (sin token)."""
+    entorno = os.environ.copy()
+    entorno["GCM_INTERACTIVE"] = "never"   # usa lo guardado, no abre diálogos
+    entorno["GIT_TERMINAL_PROMPT"] = "0"
+    argumentos = ["push", "-u", "origin", rama]
+    if forzar:
+        argumentos.insert(1, "--force-with-lease")
+    try:
+        proceso = subprocess.run(
+            ["git", *argumentos], cwd=str(RAIZ), capture_output=True, text=True,
+            encoding="utf-8", errors="replace", env=entorno,
+        )
+    except FileNotFoundError:
+        raise SystemExit("No se encontró Git instalado.")
+
+    salida = ((proceso.stderr or "") + (proceso.stdout or "")).strip()
+    if proceso.returncode == 0 or "up to date" in salida.lower() or "up-to-date" in salida.lower():
+        log(f"  · subido a origin/{rama} con las credenciales de Windows")
+        return True
+
+    if "403" in salida or "Permission to" in salida or "denied" in salida:
+        raise SystemExit(
+            "GitHub rechazó la subida con las credenciales guardadas.\n\n" + AYUDA_PERMISOS +
+            "\nDetalle de git:\n" + salida
+        )
+    raise SystemExit(
+        "No se pudo subir con las credenciales de Windows.\n\n"
+        "Puede que este equipo no tenga una sesión de GitHub guardada.\n"
+        "Abre una consola en esta carpeta y ejecuta una vez:\n"
+        "    git push\n"
+        "Se abrirá el inicio de sesión de GitHub y quedará guardado.\n\n"
+        "Detalle de git:\n" + salida
+    )
+
+
+def resolver_dueno_repo(texto):
+    """Obtiene (propietario, repositorio) desde «usuario/repo», una URL o el remoto actual."""
+    valor = (texto or "").strip()
+    if valor:
+        limpio = re.sub(r"^https?://(www\.)?github\.com/", "", valor, flags=re.IGNORECASE).strip("/")
+        if limpio.lower().endswith(".git"):
+            limpio = limpio[:-4]
+        partes = [p for p in limpio.split("/") if p]
+        if len(partes) >= 2:
+            return partes[0], normalizar_repo(partes[1])
+
+    remoto = git("remote", "get-url", "origin", check=False).stdout.strip()
+    coincidencia = re.search(r"github\.com[:/]([^/]+)/([^/]+?)(\.git)?$", remoto)
+    if coincidencia:
+        dueno = coincidencia.group(1)
+        repo = normalizar_repo(texto) or normalizar_repo(coincidencia.group(2))
+        return dueno, repo
+
+    raise SystemExit(
+        "Para subir sin token indica el repositorio como «usuario/repositorio»:\n"
+        "    publicar_github.py --sin-token --repo echeverri58/geosenamed"
+    )
+
+
 def pedir_token():
     log("")
     log("Token de GitHub (no se muestra al escribir)")
@@ -505,6 +565,8 @@ def main():
     analizador.add_argument("--force", action="store_true", help="forzar la subida")
     analizador.add_argument("--diagnostico", action="store_true",
                             help="revisar el token y los permisos sin subir nada")
+    analizador.add_argument("--sin-token", action="store_true",
+                            help="subir con las credenciales de Git guardadas en Windows (sin token)")
     args = analizador.parse_args()
 
     titulo("Publicar en GitHub · Datos Sensibles Georreferenciados (SENA)")
@@ -522,18 +584,34 @@ def main():
             log("Modo vigilancia: se resubiría al detectar cambios.")
         return
 
-    repositorio = normalizar_repo(args.repo) if args.repo else pedir_nombre_repositorio()
-    if not repositorio:
-        raise SystemExit("El nombre del repositorio no es válido.")
-    log("")
-    log(f"Repositorio: {repositorio}  ({'privado' if args.private else 'público'})")
-
+    # --local: solo repositorio local (no necesita nombre ni token)
     if args.local:
         asegurar_repositorio_local("", args.branch)
         commit_si_hay_cambios(time.strftime("Actualización %Y-%m-%d %H:%M:%S"))
         log("")
         log("Repositorio local listo (no se subió nada por usar --local).")
         return
+
+    # --sin-token: usa las credenciales de Windows; el dueño se toma del remoto
+    if args.sin_token:
+        dueno, repo_sin_token = resolver_dueno_repo(args.repo)
+        log("")
+        log(f"Repositorio: {dueno}/{repo_sin_token}  (credenciales de Windows)")
+        asegurar_repositorio_local("", args.branch)
+        configurar_remoto(dueno, repo_sin_token)
+        commit_si_hay_cambios(time.strftime("Actualización %Y-%m-%d %H:%M:%S"))
+        titulo("Subiendo cambios")
+        empujar_con_credenciales(args.branch, args.force)
+        log("")
+        log(f"Repositorio: https://github.com/{dueno}/{repo_sin_token}")
+        log(f"Sitio web:   https://{dueno}.github.io/{repo_sin_token}/")
+        return
+
+    repositorio = normalizar_repo(args.repo) if args.repo else pedir_nombre_repositorio()
+    if not repositorio:
+        raise SystemExit("El nombre del repositorio no es válido.")
+    log("")
+    log(f"Repositorio: {repositorio}  ({'privado' if args.private else 'público'})")
 
     token = args.token or os.environ.get("GITHUB_TOKEN") or ""
     if not token:

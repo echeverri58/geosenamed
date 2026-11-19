@@ -49,10 +49,11 @@ echo ============================================================
 echo.
 echo   Que quieres hacer?
 echo.
-echo     [1] Subir todo a GitHub              (pregunta el nombre del repo)
-echo     [2] Subir y vigilar cambios          (resube si algo cambia)
-echo     [3] Solo preparar el repositorio local (sin subir)
-echo     [4] Ver opciones avanzadas
+echo     [1] Subir todo a GitHub              (usa la sesion guardada, sin token)
+echo     [2] Subir con un token               (si la sesion no funciona)
+echo     [3] Subir y vigilar cambios          (con token, resube si algo cambia)
+echo     [4] Solo preparar el repositorio local (sin subir)
+echo     [5] Ver opciones avanzadas
 echo     [0] Salir
 echo.
 echo   Archivos y carpetas de esta publicacion:
@@ -64,7 +65,8 @@ if not defined OPCION set "OPCION=1"
 if "%OPCION%"=="1" goto opcion_1
 if "%OPCION%"=="2" goto opcion_2
 if "%OPCION%"=="3" goto opcion_3
-if "%OPCION%"=="4" goto ayuda
+if "%OPCION%"=="4" goto opcion_4
+if "%OPCION%"=="5" goto ayuda
 if "%OPCION%"=="0" goto salir_menu
 echo.
 echo   Opcion no valida. Intenta de nuevo.
@@ -72,14 +74,18 @@ timeout /t 2 >nul 2>nul
 goto menu
 
 :opcion_1
-set "ARGS="
+set "ARGS=--sin-token"
 goto ejecutar
 
 :opcion_2
-set "ARGS=--watch"
+set "ARGS="
 goto ejecutar
 
 :opcion_3
+set "ARGS=--watch"
+goto ejecutar
+
+:opcion_4
 set "ARGS=--local"
 goto ejecutar
 
@@ -95,9 +101,12 @@ echo   OPCIONES AVANZADAS
 echo ============================================================
 echo.
 echo   Se pueden combinar, por ejemplo:
+echo      "PUBLICAR EN GITHUB.bat" --sin-token
 echo      "PUBLICAR EN GITHUB.bat" --repo mi-app --private --pages
 echo.
-echo   --repo NOMBRE     nombre del repositorio (si no, lo pregunta)
+echo   --sin-token       sube con la sesion de GitHub guardada en Windows
+echo                     (no pide token; el repositorio debe existir)
+echo   --repo NOMBRE     nombre del repositorio o URL completa
 echo   --private         repositorio privado (por defecto publico)
 echo   --watch           queda vigilando y resube al detectar cambios
 echo   --interval N      segundos entre revisiones en --watch (5)
