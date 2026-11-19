@@ -23,6 +23,7 @@ Opciones
     --token TOKEN        token de GitHub (si no, usa GITHUB_TOKEN o lo pregunta)
     --branch RAMA        rama a publicar (por defecto main)
     --local              solo prepara el repositorio local y hace el commit
+    --diagnostico        revisa el token y los permisos sin subir nada
     --dry-run            muestra lo que haría, sin tocar nada
     --force              fuerza la subida si el remoto tiene historia distinta
 
@@ -245,8 +246,29 @@ def commit_si_hay_cambios(mensaje):
     return True
 
 
+AYUDA_PERMISOS = """\
+El token no tiene permiso de escritura sobre el repositorio.
+
+Revisa una de estas opciones:
+  · Token clásico (recomendado): debe tener marcado el permiso «repo».
+      https://github.com/settings/tokens/new?scopes=repo&description=geosenamed
+  · Token fine-grained:
+      - Repository access: «All repositories» o incluir este repositorio.
+      - Permissions → Contents: «Read and write».
+  · Si el token se creó antes que el repositorio, vuelve a crearlo y
+    selecciona el repositorio (los fine-grained solo ven los que existían).
+  · Comprueba también que el repositorio no esté archivado (Settings).
+"""
+
+
 def empujar(token, rama, forzar=False):
     """Sube la rama usando el token solo en esta orden (no queda guardado)."""
+    if git("rev-parse", "--verify", "HEAD", check=False).returncode != 0:
+        raise SystemExit(
+            "El repositorio local no tiene ningún commit todavía.\n"
+            "Ejecuta de nuevo el script y elige la opción de subir todo."
+        )
+
     credencial = base64.b64encode(f"x-access-token:{token}".encode()).decode()
     cabecera = f"http.https://github.com/.extraheader=AUTHORIZATION: basic {credencial}"
     args = ["-c", cabecera, "push", "-u", "origin", rama]
@@ -258,15 +280,24 @@ def empujar(token, rama, forzar=False):
         return True
 
     salida = (resultado.stderr or resultado.stdout or "").strip()
-    log("  · el remoto tiene historia distinta; intentando integrar…")
-    git("-c", cabecera, "pull", "--rebase", "origin", rama, check=False)
-    resultado = git(*args, check=False)
-    if resultado.returncode == 0:
-        log(f"  · subido a origin/{rama} tras integrar")
-        return True
+
+    # Permiso denegado: no tiene sentido reintentar con rebase
+    if "403" in salida or "Permission to" in salida or "denied to" in salida or "could not read Username" in salida:
+        raise SystemExit("GitHub rechazó la subida.\n\n" + AYUDA_PERMISOS + "\nDetalle de git:\n" + salida)
+
+    # Rama remota con otra historia: se intenta integrar y reintentar
+    if any(pista in salida for pista in ("rejected", "non-fast-forward", "fetch first", "histories")):
+        log("  · el remoto tiene historia distinta; intentando integrar…")
+        git("-c", cabecera, "pull", "--rebase", "origin", rama, check=False)
+        resultado = git(*args, check=False)
+        if resultado.returncode == 0:
+            log(f"  · subido a origin/{rama} tras integrar")
+            return True
+
     raise SystemExit(
         "No se pudo subir. Detalle de git:\n" + salida +
-        "\n\nSugerencia: ejecuta de nuevo con --force si el repositorio es solo tuyo."
+        "\n\nSugerencias: revisa tu conexión, el nombre del repositorio y los permisos "
+        "del token; si el repositorio es solo tuyo puedes intentar con --force."
     )
 
 
@@ -310,12 +341,45 @@ def validar_token(token):
     return datos["login"]
 
 
+def diagnosticar_permisos(token, propietario, repositorio):
+    """Revisa el token y si puede escribir en el repositorio. Devuelve (ok, mensaje)."""
+    estado, usuario = api("GET", "/user", token)
+    if estado == 401:
+        return False, "El token no es válido o expiró."
+    if estado != 200:
+        return False, f"No se pudo validar el token (HTTP {estado})."
+    login = usuario.get("login", "?")
+
+    estado, repo = api("GET", f"/repos/{propietario}/{repositorio}", token)
+    if estado == 404:
+        return False, (
+            f"El token de {login} no puede ver «{propietario}/{repositorio}». "
+            "Si es fine-grained, revisa «Repository access» e incluye el repositorio."
+        )
+    if estado == 403:
+        return False, f"El token de {login} no tiene acceso a «{propietario}/{repositorio}» (403)."
+    if estado != 200:
+        return False, f"No se pudo consultar el repositorio (HTTP {estado})."
+    if repo.get("archived"):
+        return False, "El repositorio está archivado: desarchívalo en Settings para poder subir."
+
+    permisos = repo.get("permissions") or {}
+    if not any(permisos.get(p) for p in ("push", "admin", "maintain")):
+        return False, (
+            f"El token de {login} solo tiene lectura en «{propietario}/{repositorio}» "
+            "(falta Contents: Read and write o el permiso «repo»)."
+        )
+    return True, f"token de {login} con permiso de escritura en {propietario}/{repositorio}"
+
+
 def crear_repositorio(token, propietario, nombre, privado):
     estado, existente = api("GET", f"/repos/{propietario}/{nombre}", token)
     if estado == 200:
         log(f"  · el repositorio ya existe: {existente['html_url']}")
         return existente
-    if estado not in (404, 403):
+    if estado == 403:
+        raise SystemExit(f"El token no tiene acceso a {propietario}/{nombre}.\n\n" + AYUDA_PERMISOS)
+    if estado != 404:
         raise SystemExit(f"No se pudo consultar el repositorio ({estado}): {existente.get('message', existente)}")
 
     estado, creado = api("POST", "/user/repos", token, {
@@ -330,10 +394,11 @@ def crear_repositorio(token, propietario, nombre, privado):
         log(f"  · repositorio creado: {creado['html_url']}")
         return creado
     if estado == 422:
-        log("  · el repositorio ya existe (o el nombre no es válido)")
-        estado, existente = api("GET", f"/repos/{propietario}/{nombre}", token)
-        if estado == 200:
-            return existente
+        # El nombre está ocupado: existe pero este token no lo puede ver
+        raise SystemExit(
+            f"El repositorio «{propietario}/{nombre}» ya existe, pero el token no tiene acceso a él.\n\n"
+            + AYUDA_PERMISOS
+        )
     raise SystemExit(f"No se pudo crear el repositorio ({estado}): {creado.get('message', creado)}")
 
 
@@ -438,6 +503,8 @@ def main():
     analizador.add_argument("--local", action="store_true", help="solo repositorio local y commit")
     analizador.add_argument("--dry-run", action="store_true", help="mostrar lo que haría, sin cambios")
     analizador.add_argument("--force", action="store_true", help="forzar la subida")
+    analizador.add_argument("--diagnostico", action="store_true",
+                            help="revisar el token y los permisos sin subir nada")
     args = analizador.parse_args()
 
     titulo("Publicar en GitHub · Datos Sensibles Georreferenciados (SENA)")
@@ -477,8 +544,27 @@ def main():
     titulo("Conectando con GitHub")
     propietario = validar_token(token)
     log(f"  · usuario autenticado: {propietario}")
+
+    # Diagnóstico: solo revisa, no crea ni sube nada
+    if args.diagnostico:
+        ok, mensaje = diagnosticar_permisos(token, propietario, repositorio)
+        log(f"  · repositorio: {propietario}/{repositorio}")
+        log(f"  · {'OK' if ok else 'PROBLEMA'}: {mensaje}")
+        if not ok:
+            log("")
+            log(AYUDA_PERMISOS)
+            raise SystemExit(1)
+        log("  · todo listo: el token puede subir a este repositorio")
+        return
+
     datos = crear_repositorio(token, propietario, repositorio, args.private)
     url_repo = datos.get("html_url", f"https://github.com/{propietario}/{repositorio}")
+
+    # Verificación previa: evita el error 403 de git al final
+    ok, mensaje = diagnosticar_permisos(token, propietario, repositorio)
+    log(f"  · {mensaje}")
+    if not ok:
+        raise SystemExit(mensaje + "\n\n" + AYUDA_PERMISOS)
 
     asegurar_repositorio_local(propietario, args.branch)
     configurar_remoto(propietario, repositorio)

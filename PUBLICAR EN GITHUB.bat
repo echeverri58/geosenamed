@@ -106,6 +106,7 @@ echo   --branch RAMA     rama a publicar (main)
 echo   --local           solo repositorio local y commit, sin subir
 echo   --dry-run         muestra que subiria, sin tocar nada
 echo   --force           fuerza la subida si el remoto tiene otra historia
+echo   --diagnostico     revisa el token y los permisos sin subir nada
 echo.
 echo   Token de GitHub: https://github.com/settings/tokens  (permiso "repo")
 echo   Los archivos de mas de 50 MB no se suben (por ejemplo el .pbf).
