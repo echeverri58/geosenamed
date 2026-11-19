@@ -53,28 +53,34 @@ nivel municipal (direcciones que no se pudieron geocodificar).
 
 **Opción fácil (Windows):** doble clic en **`PUBLICAR EN GITHUB.bat`** y elige en el menú:
 
-1. Subir todo a GitHub
-2. Subir y vigilar cambios (resube al detectar cambios)
-3. Solo preparar el repositorio local
+1. Subir todo a GitHub — usa la **sesión de GitHub guardada** en el equipo (no pide token)
+2. Subir con un token — si no hay sesión guardada
+3. Subir y vigilar cambios — resube solo al detectar cambios
+4. Solo preparar el repositorio local
 
 **Opción consola:**
 
 ```bash
-# 1) Sube todo (pregunta el nombre del repositorio)
-python publicar_github.py
+# Sube todo usando las credenciales guardadas en Windows (sin token)
+python publicar_github.py --sin-token
 
-# 2) Sube y queda vigilando: si cambias algo en la carpeta, lo vuelve a subir
-python publicar_github.py --watch
+# Con token (lo pide de forma oculta)
+python publicar_github.py --repo geosenamed
+
+# Vigilar cambios y resubir
+python publicar_github.py --repo geosenamed --watch
 
 # Otras opciones
 python publicar_github.py --repo mi-repositorio --private --pages
+python publicar_github.py --diagnostico --repo geosenamed   # revisa permisos sin subir
 python publicar_github.py --local      # solo repositorio local y commit
 python publicar_github.py --dry-run    # muestra qué subiría, sin cambios
 ```
 
-Necesitas **Git** instalado y un **token de GitHub** con permiso de repositorio
-(https://github.com/settings/tokens). El script lo pide de forma oculta o lo toma de la
-variable `GITHUB_TOKEN`; nunca lo guarda en el repositorio.
+La primera vez que subas desde un equipo, Git te pedirá iniciar sesión en GitHub y
+guardará la credencial; después `--sin-token` funciona solo. Si prefieres token, créalo en
+https://github.com/settings/tokens con el permiso **`repo`** (clásico) o con
+**Contents: Read and write** (fine-grained, incluyendo el repositorio).
 
 Archivos que **no** se suben: los mayores de 50 MB (por ejemplo `colombia-261118.osm.pbf`),
 `*.zip`, `*.crdownload` y carpetas ocultas de caché.
