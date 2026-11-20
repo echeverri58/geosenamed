@@ -62,6 +62,11 @@ La carpeta **`PowerBI/`** trae todo listo para armar el informe en Power BI Desk
 | `CSV/` | Los mismos datos en 9 archivos UTF-8. |
 | `GUIA_POWERBI.md` | Paso a paso: relaciones, medidas y las 4 páginas del informe. |
 
+**Tutorial completo en PDF:** [`Tutorial_PowerBI.pdf`](Tutorial_PowerBI.pdf) (28 páginas) — de los
+datos al informe publicado, con bocetos de cada página, capturas de la aplicación, las medidas
+explicadas y listas de verificación. La versión editable está en
+[`Tutorial_PowerBI.docx`](Tutorial_PowerBI.docx).
+
 ## Publicar o actualizar en GitHub
 
 **Opción fácil (Windows):** doble clic en **`PUBLICAR EN GITHUB.bat`** y elige en el menú:
