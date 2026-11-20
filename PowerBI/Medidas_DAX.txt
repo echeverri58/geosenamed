@@ -1,0 +1,84 @@
+// ═══════════════════════════════════════════════════════════════════════════
+//  MEDIDAS DAX · Datos Sensibles Georreferenciados (SENA)
+//  Power BI → Modelo (o Datos) → Nueva medida → pega cada bloque y Enter.
+//  El nombre va antes del «=»; lo que sigue es la fórmula.
+// ═══════════════════════════════════════════════════════════════════════════
+
+// ── 1. Conteos básicos ─────────────────────────────────────────────────────
+Total Personas = COUNTROWS(HechosFicha)
+
+Mujeres = CALCULATE([Total Personas], HechosFicha[Sexo] = "Femenino")
+
+Hombres = CALCULATE([Total Personas], HechosFicha[Sexo] = "Masculino")
+
+% Mujeres = DIVIDE([Mujeres], [Total Personas])
+
+% Hombres = DIVIDE([Hombres], [Total Personas])
+
+// ── 2. Edad ────────────────────────────────────────────────────────────────
+Edad Promedio = AVERAGE(HechosFicha[Edad])
+
+Edad Mediana = MEDIAN(HechosFicha[Edad])
+
+Edad Minima = MIN(HechosFicha[Edad])
+
+Edad Maxima = MAX(HechosFicha[Edad])
+
+Rango de Edad = FORMAT([Edad Minima], "0") & " a " & FORMAT([Edad Maxima], "0") & " años"
+
+// ── 3. Cobertura territorial ───────────────────────────────────────────────
+Ciudades = DISTINCTCOUNT(HechosFicha[Ciudad])
+
+Departamentos = DISTINCTCOUNT(HechosFicha[Departamento])
+
+Comunas = DISTINCTCOUNT(HechosFicha[Comuna])
+
+Barrios Medellin = DISTINCTCOUNT(HechosFicha[BarrioMedellin])
+
+Personas Medellin = CALCULATE([Total Personas], HechosFicha[Ciudad] = "MEDELLIN")
+
+% Medellin = DIVIDE([Personas Medellin], [Total Personas])
+
+Personas Resto del Pais = [Total Personas] - [Personas Medellin]
+
+// ── 4. Calidad de la georreferenciación ────────────────────────────────────
+Con Direccion = CALCULATE([Total Personas], HechosFicha[NivelGeo] = "dirección")
+
+Con Comuna = CALCULATE([Total Personas], NOT ISBLANK(HechosFicha[Comuna]))
+
+% Georreferenciado Fino = DIVIDE([Con Direccion], [Total Personas])
+
+Sin Comuna = CALCULATE([Total Personas], ISBLANK(HechosFicha[Comuna]))
+
+// ── 5. Rankings y extremos ─────────────────────────────────────────────────
+Top Ciudad =
+VAR t = TOPN(1, VALUES(DimCiudad[Ciudad]), [Total Personas], DESC)
+RETURN CONCATENATEX(t, DimCiudad[Ciudad], ", ")
+
+Top Comuna =
+VAR t = TOPN(1, VALUES(DimComuna[Comuna]), [Total Personas], DESC)
+RETURN CONCATENATEX(t, DimComuna[Comuna], ", ")
+
+Top Barrio =
+VAR t = TOPN(1, VALUES(DimBarrio[Barrio]), [Total Personas], DESC)
+RETURN CONCATENATEX(t, DimBarrio[Barrio], ", ")
+
+EPS Mas Frecuente =
+VAR t = TOPN(1, VALUES(DimEPS[EPS]), [Total Personas], DESC)
+RETURN CONCATENATEX(t, DimEPS[EPS], ", ")
+
+Concentracion Comuna Top =
+VAR mayor = MAXX(VALUES(DimComuna[Comuna]), [Total Personas])
+RETURN DIVIDE(mayor, [Personas Medellin])
+
+Promedio por Comuna = AVERAGEX(VALUES(DimComuna[Comuna]), [Total Personas])
+
+Personas por Comuna (max) = MAXX(VALUES(DimComuna[Comuna]), [Total Personas])
+
+// ── 6. Tabla de detalle ────────────────────────────────────────────────────
+Ficha Resumida =
+CONCATENATEX(
+    VALUES(HechosFicha[NombreCompleto]),
+    HechosFicha[NombreCompleto],
+    " · "
+)

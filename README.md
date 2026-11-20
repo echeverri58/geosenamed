@@ -49,6 +49,19 @@ indicadores, filtros y análisis por comuna y barrio de Medellín.
 Detalle de Medellín: 236 registros por dirección catastral, 45 dentro de su comuna y 6 a
 nivel municipal (direcciones que no se pudieron geocodificar).
 
+## Power BI
+
+La carpeta **`PowerBI/`** trae todo listo para armar el informe en Power BI Desktop:
+
+| Archivo | Contenido |
+|---|---|
+| `Datos_PowerBI.xlsx` | Modelo completo: 666 hechos + 8 dimensiones (ciudad, comuna, barrio, EPS, educación, sexo, institución, cobertura). |
+| `Medidas_DAX.txt` | 30 medidas (KPIs, promedios, rankings, calidad de georreferenciación). |
+| `Tema_SENA.json` | Tema de colores institucional. |
+| `Consultas_PowerBI.m` | Power Query para cargar desde los CSV. |
+| `CSV/` | Los mismos datos en 9 archivos UTF-8. |
+| `GUIA_POWERBI.md` | Paso a paso: relaciones, medidas y las 4 páginas del informe. |
+
 ## Publicar o actualizar en GitHub
 
 **Opción fácil (Windows):** doble clic en **`PUBLICAR EN GITHUB.bat`** y elige en el menú:
@@ -100,6 +113,7 @@ OpenStreetMap (mosaicos OSM France / Esri) · CARTO no se usa (exige clave).
 index.html                  ← la aplicación completa con los datos incrustados
 PUBLICAR EN GITHUB.bat      ← doble clic para publicar (menú)
 publicar_github.py          ← script para publicar/actualizar en GitHub
+PowerBI/                    ← modelo, medidas y guía para Power BI
 FichaCiudadano.xls          ← fuente original de la ficha
 FichaCiudadano_archivos/    ← hojas de la exportación web de Excel
 medellin.xlsx               ← geocodificación catastral de Medellín
